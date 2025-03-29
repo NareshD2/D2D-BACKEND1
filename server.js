@@ -5,16 +5,18 @@ const cors = require('cors');
 const session = require('express-session');
 const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
+const router = require("./userRoutes");
 
 const app = express();
 app.use(bodyParser.json());
 app.use(cookieParser());
 
+
 app.use(cors({
   origin: 'http://localhost:3000', 
   credentials: true 
 }));
-
+app.use('/',router);
 
 
 /*app.use(session({
@@ -50,90 +52,22 @@ const db = mysql.createPool({
   password: 'Supriya@987', 
   database: 'drive_to_destiny' 
 });
-app.post('/api/register', async (req, res) => {
-  const { name, email, phone, password } = req.body;
-
-  if (!name || !email || !phone || !password) {
-    return res.status(400).json({ message: 'Please fill all fields' });
-  }
-
-  try {
-    const [checkEmailResult] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
-
-    if (checkEmailResult.length > 0) {
-      return res.status(409).json({ message: 'User already exists' });
-    }
-
-    await db.query('INSERT INTO users (name, email, phone, password) VALUES (?, ?, ?, ?)', [name, email, phone, password]);
-    res.status(201).json({ message: 'User registered successfully' });
-  } catch (err) {
-    console.error('Error processing registration:', err);
-    return res.status(500).json({ message: 'Database error' });
-  }
-});
 
 
-app.post('/api/Customerlogin', async (req, res) => {
-  const { email, password } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ message: 'Please fill in both fields' });
-  }
 
-  try {
-    let [results] = await db.query('SELECT * FROM users WHERE email = ? AND password = ?', [email, password]);
 
-    if (results.length > 0) {
-      //req.session.user = results; 
-      //const id = results[0].id;
-      jwt.sign({results},"jwtSecret",{expiresIn: "2h"},(err,token) =>{
-          if(err){
-          res.send({result:"somethin went wrong please try again"});}
-          res.send({ results,auth: token});
-        });
-      
-    } else {
-      return res.status(401).json({ message: 'Invalid username or password' });
-    }
-  } catch (err) {
-    console.error('Error querying database:', err);
-    return res.status(500).json({ message: 'Database error' });
-  }
-});
 
-app.post('/api/Mentorlogin', async (req, res) => {
-  const { email, password } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ message: 'Please fill in both fields' });
-  }
 
-  try {
-    let [results] = await db.query('SELECT * FROM mentors WHERE email = ? AND password = ?', [email, password]);
 
-    if (results.length > 0) {
-      //req.session.user = results; 
-      //const id = results[0].id;
-      jwt.sign({results},"jwtSecret",{expiresIn: "2h"},(err,token) =>{
-          if(err){
-          res.send({result:"somethin went wrong please try again"});}
-          res.send({ results,auth: token});
-        });
-      
-    } else {
-      return res.status(401).json({ message: 'Invalid username or password' });
-    }
-  } catch (err) {
-    console.error('Error querying database:', err);
-    return res.status(500).json({ message: 'Database error' });
-  }
-});
 // Add to your server.js
 
-app.post('/feedback', (req, res) => {
-  const { student_id, mentor_id, feedback } = req.body;
-  const sql = 'INSERT INTO feedbacks (student_id, mentor_id, feedback) VALUES (?, ?, ?)';
-  db.query(sql, [student_id, mentor_id, feedback], (err, result) => {
+app.post('/feedbacks', (req, res) => {
+  const { student_id, sendor_id,sendortype,feedback } = req.body;
+  console.log("Received data:", req.body); 
+  const sql = 'INSERT INTO feedbacks (student_id, sendor_id,sendortype,feedback) VALUES (?, ?, ?,?)';
+  db.query(sql, [student_id, sendor_id,sendortype,feedback], (err, result) => {
     if (err) {
       console.error(err);
       return res.status(500).send("Error saving feedback");
@@ -158,10 +92,7 @@ app.post('/notification', (req, res) => {
 app.post('/api/set-goal',async (req, res) => {
   
   const {userId, gid, targetDate, objective} = req.body;
-  console.log(gid);
-  console.log(objective);
-  console.log(targetDate);
-  console.log(userId);
+  
 
   try {
     await db.query(
@@ -186,6 +117,49 @@ app.get('/api/set-goal', async (req, res) => {
   }
 });
 
+app.post("/api/Addgoals", async (req, res) => {
+  try {
+    const { goal } = req.body;
+
+    if (!goal) {
+      return res.status(400).json({ error: "Goal name is required" });
+    }
+
+    // Check if goal already exists
+    const checkQuery = "SELECT * FROM goals WHERE goal_name = ?";
+    const [results] = await db.execute(checkQuery, [goal]);
+
+    if (results.length > 0) {
+      return res.json({ exists: true });
+    }
+
+    // Insert new goal
+    const insertQuery = "INSERT INTO goals (goal_name) VALUES (?)";
+    await db.execute(insertQuery, [goal]);
+
+    return res.json({ exists: false });
+
+  } catch (err) {
+    console.error("Database error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+
+app.get('/getassignments', async(req, res) => {
+  
+  try{
+  const [rows] = await db.query('SELECT assignment_id, title, due_date FROM assignments');
+  
+      res.json(rows);
+
+    } catch (err) {
+      console.error(err);
+    res.status(500).send('Server Error');
+    }
+
+  
+});
 app.get('/courses', async (req, res) => {
   try {
     const [rows] = await db.query('SELECT cid, course_name, icon, link FROM courses');
@@ -195,33 +169,66 @@ app.get('/courses', async (req, res) => {
     res.status(500).send('Server Error');
   }
 });
-app.get('/courses1/:userId', async (req, res) => {
-  const userId = req.params.userId;
+
+app.post('/assignments', async (req, res) => {
+  const { courseId, title, dueDate, references } = req.body;
+  await db.query(
+      `INSERT INTO assignments (course_id, title, due_date, reference_m) 
+       VALUES (?, ?, ?, ?)`, [courseId, title, dueDate, references]
+  );
+  res.json({ message: 'Assignment created successfully' });
+});
+
+app.get('/courses1/:goal_name', async (req, res) => {
+  const goal_name = req.params.goal_name;
   try {
     
-    const [rows] = await db.query('SELECT gc2.cid,gc2.course_name,gc2.icon,gc2.link FROM user_goal_registration AS ugr JOIN goal_courses AS gc1 ON ugr.gid = gc1.goal_id JOIN courses AS gc2 ON gc1.cid = gc2.cid WHERE ugr.uid = ?',[userId]);
+    const [rows] = await db.query('SELECT gc1.cid, gc1.course_name, gc1.icon, gc1.link FROM courses AS gc1 JOIN goal_courses AS gc2 ON gc1.cid = gc2.cid JOIN goals AS g ON gc2.goal_id = g.id WHERE g.goal_name = ?', [goal_name]);
+
     res.json(rows);
+   
   } catch (error) {
     console.error(error);
     res.status(500).send('Server Error');
   }
 });
-app.get('/api/goals/:userId', async (req, res) => {
-  const userId = req.params.userId;
-console.log(userId);
-  try {
-    const [goals] = await db.query(
-    'SELECT  g.goal_name FROM user_goal_registration ugr JOIN goals g ON ugr.gid = g.id WHERE ugr.uid = ?',
-      [userId]);
-      console.log(goals);
-    
-    res.json({ goals });
 
+
+app.post('/submit', async (req, res) => {
+  const { assignmentId, studentId, uploadLink, studentName } = req.body;
+  await db.query(
+      `INSERT INTO submissions (assignment_id, student_id, student_name, upload_link) 
+       VALUES (?, ?, ?, ?)`, [assignmentId, studentId, studentName, uploadLink]
+  );
+  res.json({ message: 'Assignment submitted successfully' });
+});
+
+app.get('/submittedassignments',async (req,res)=>{
+  const {uid}=req.query;
+  if(!uid){
+    return res.status(400).json({error:'user id required'});
+    }
+  const [results]=await db.query(`select assignment_id from submissions where student_id=?`,[uid]);
+  res.json(results);
+  console.log(results);
+});
+// Fetch all submissions for mentor view
+app.get('/submissions', async (req, res) => {
+  try {
+    /*const [submissions] = await db.query(`
+      SELECT s.assignment_id, s.student_id, s.student_name, s.upload_link, a.title, a.due_date
+      FROM submissions s
+      JOIN assignments a ON s.assignment_id = a.assignment_id
+      ORDER BY a.due_date DESC
+    `);*/
+    const [submissions]=await db.query('select * from submissions');
+    res.json(submissions);
   } catch (error) {
-    console.error("Error fetching goals:", error);
-    res.status(500).json({ error: 'Failed to retrieve goals' });
+    console.error(error);
+    res.status(500).json({ error: 'Failed to retrieve submissions' });
   }
 });
+
 
 app.get('/api/:cid', async (req, res) => {
   const { cid } = req.params; 
@@ -240,17 +247,11 @@ app.get('/api/:cid', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-app.get('/users', async(req, res) => {
-  try{
-  const [sql] = await db.query("SELECT id, name, email, phone FROM users");
 
-  
-    res.json(sql);
-  }catch (err){
-    console.error(err);
-    res.status(500).send("Error fetching details.");
-  }
-});
+
+
+
+
 
 app.post('/MentorPosts', (req, res) => {
   const { title, description, companyLink } = req.body; // Extracting values from req.body
@@ -261,16 +262,16 @@ app.post('/MentorPosts', (req, res) => {
   }
 
   const sql = `
-    INSERT INTO job_alerts (jobTitle, jobDescription, companyName, companyLink, datePosted)
-    VALUES (?, ?, ?, ?, NOW())
+    INSERT INTO job_alerts (jobTitle, jobDescription, companyLink, datePosted)
+    VALUES (?, ?, ?, NOW())
   `;
 
-  db.query(sql, [title, description, 'IBM', companyLink], (err, result) => {
+  db.query(sql, [title, description, companyLink], (err, result) => {
     if (err) {
       console.error("Database error:", err);
       return res.status(500).send("Error posting job alert.");
     }
-    res.send("Job alert posted successfully.");
+    res.status(201).json("Job1 alert posted successfully.");
   });
 });
 
@@ -287,7 +288,7 @@ app.get('/Userjobalerts', async (req, res) => {
   }
 });
 
-app.get('/user-feedback/:userId', async (req, res) => {
+/*app.get('/user-feedback/:userId', async (req, res) => {
   const { userId } = req.params;
   
   try {
@@ -305,7 +306,53 @@ app.get('/user-feedback/:userId', async (req, res) => {
     console.error("Error fetching feedbacks:", error);
     res.status(500).send("Error fetching feedbacks");
   }
+});*/
+
+app.get('/user-feedback/:userId', async (req, res) => {
+  const { userId } = req.params;
+  
+  try {
+    const feedbacksQuery = `
+      SELECT f.feedback, f.created_at, 
+        CASE 
+          WHEN f.sendortype = 'mentor' THEN m.name 
+          WHEN f.sendortype = 'admin' THEN a.name 
+          ELSE NULL 
+        END AS sender_name
+      FROM feedbacks f
+      LEFT JOIN mentors m ON f.sendortype = 'mentor' AND f.sendor_id = m.id
+      LEFT JOIN admins a ON f.sendortype = 'admin' AND f.sendor_id = a.id
+      WHERE f.student_id = ?
+      ORDER BY f.created_at DESC
+    `;
+
+    const [feedbacks] = await db.query(feedbacksQuery, [userId]);
+    res.json(feedbacks);
+  } catch (error) {
+    console.error("Error fetching feedbacks:", error);
+    res.status(500).send("Error fetching feedbacks");
+  }
 });
+
+app.get('/api/goals/:userId', async (req, res) => {
+  const userId = req.params.userId;
+
+  try {
+    const [goals] = await db.query(
+    'SELECT  g.goal_name FROM user_goal_registration ugr JOIN goals g ON ugr.gid = g.id WHERE ugr.uid = ?',
+      [userId]);
+     
+    
+    res.json({ goals });
+
+  } catch (error) {
+    console.error("Error fetching goals:", error);
+    res.status(500).json({ error: 'Failed to retrieve goals' });
+  }
+});
+
+// Save user progress
+
 const PORT = 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
