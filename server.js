@@ -13,7 +13,7 @@ app.use(cookieParser());
 
 
 app.use(cors({
-  origin: 'http://localhost:3000', 
+  origin: 'http://ip-12-0-11-17.ap-south-1.compute.internal', 
   credentials: true 
 }));
 app.use('/',router);
