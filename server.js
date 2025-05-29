@@ -88,14 +88,12 @@ app.post('/notification', (req, res) => {
   });
 });
 
-
-app.post('/api/set-goal',async (req, res) => {
-  
-  const {userId, gid, targetDate, objective} = req.body;
-  
-
+app.post('/api/set-goal', async (req, res) => {
+  const { userId, gid, targetDate, objective } = req.body;
   try {
-    await db.query(
+   const [existing] = await db.query('SELECT * FROM user_goal_registration WHERE uid = ? AND gid = ?',[userId, gid]);
+   if (existing.length > 0) {return res.status(400).json({ message: 'Goal already exists' });}
+   await db.query(
       'INSERT INTO user_goal_registration (gid, uid, targetdate, objective) VALUES (?, ?, ?, ?)',
       [gid, userId, targetDate, objective]
     );
@@ -105,6 +103,7 @@ app.post('/api/set-goal',async (req, res) => {
     res.status(500).json({ message: 'Error registering goal' });
   }
 });
+
 app.get('/api/set-goal', async (req, res) => {
   
   try {
@@ -184,7 +183,7 @@ app.get('/courses1/:goal_name', async (req, res) => {
   try {
     
     const [rows] = await db.query('SELECT gc1.cid, gc1.course_name, gc1.icon, gc1.link FROM courses AS gc1 JOIN goal_courses AS gc2 ON gc1.cid = gc2.cid JOIN goals AS g ON gc2.goal_id = g.id WHERE g.goal_name = ?', [goal_name]);
-
+    //const [progress]=await db.query('select course_progress');
     res.json(rows);
    
   } catch (error) {
@@ -338,9 +337,28 @@ app.get('/api/goals/:userId', async (req, res) => {
   const userId = req.params.userId;
 
   try {
-    const [goals] = await db.query(
+    /*const [goals] = await db.query(
     'SELECT  g.goal_name FROM user_goal_registration ugr JOIN goals g ON ugr.gid = g.id WHERE ugr.uid = ?',
-      [userId]);
+      [userId]);*/
+    //const [goals]=await db.query(`select g.goal_name,avg(uc.course_progress) as goal_progress from user_course_progress uc join goal_courses gc on uc.cid=gc.cid join goals g on g.id=gc.goal_id where uc.uid = ? group by g.goal_name`,[userId]); 
+    const [goals] = await db.query(`
+  SELECT 
+    g.goal_name,
+    round(COALESCE(AVG(COALESCE(uc.course_progress, 0)), 0),2) AS goal_progress
+  FROM 
+    user_goal_registration ugr
+  JOIN 
+    goals g ON g.id = ugr.gid
+  JOIN 
+    goal_courses gc ON g.id = gc.goal_id
+  LEFT JOIN 
+    user_course_progress uc ON uc.cid = gc.cid AND uc.uid = ?
+  WHERE 
+    ugr.uid = ?
+  GROUP BY 
+    g.goal_name
+`, [userId, userId]);
+
      
     
     res.json({ goals });

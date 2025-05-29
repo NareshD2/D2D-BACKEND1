@@ -202,8 +202,8 @@ app.post('/api/Adminlogin', async (req, res) => {
     }
   });
   
-  app.post('/progress', (req, res) => {
-    const { userId, cid, completedVideos } = req.body;
+  app.post('/progress', async(req, res) => {
+    const { userId, cid, completedVideos,totalVideos } = req.body;
     const videoStr = completedVideos.join('@#$%');
   
     db.query(
@@ -217,10 +217,20 @@ app.post('/api/Adminlogin', async (req, res) => {
             res.json({ success: true });
         }
     );
+    //const [videoCountResult] = await db.query('SELECT COUNT(*) AS total FROM course_content WHERE cid = ?', [cid]);
+    //const totalVideos = videoCountResult[0]?.total || 0;
+    const progress = totalVideos > 0 ? Math.round((completedVideos.length / totalVideos) * 100) : 0;
+    const [cid1]=await db.query(`SELECT cid FROM courses WHERE LOWER(REPLACE(course_name, '.', '')) = ?`,[cid]);
+    await db.query(
+      'INSERT INTO user_course_progress (uid, cid, course_progress) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE course_progress = ?',
+      [userId, cid1[0].cid, progress, progress]
+    );
+   
+     
   });
 
   app.get('/progress/:userId/:cid', async(req, res) => {
-    const { userId, cid } = req.params;
+    const { userId, cid} = req.params;
     try{
     const [rows]= await db.query('SELECT completed_videos FROM user_progress WHERE user_id = ? AND cid = ?',[userId, cid]);
     if (rows.length > 0) {
