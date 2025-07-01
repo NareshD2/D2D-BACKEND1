@@ -3,12 +3,14 @@ const jwt = require('jsonwebtoken');
 const app = express();
 const mysql = require('mysql2/promise'); 
 app.use(express.json());
+
 const db = mysql.createPool({
-  host: 'localhost',
-  user: 'root', 
-  password: 'Supriya@987', 
-  database: 'drive_to_destiny' 
+  host: 'database-1.c9ymi8csk3n5.ap-south-1.rds.amazonaws.com',
+  user: 'admin', 
+  password: 'Supriya9876', 
+  database: 'd2d_rds' 
 });
+
 
 app.post('/api/register', async (req, res) => {
     const { name, email, phone, password } = req.body;

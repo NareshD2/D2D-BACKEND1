@@ -13,7 +13,7 @@ app.use(cookieParser());
 
 
 app.use(cors({
-  origin: 'http://localhost:3000', 
+  origin: ['http://localhost:3000','http://d2d-alb-550567675.ap-south-1.elb.amazonaws.com:5000'], 
   credentials: true 
 }));
 app.use('/',router);
@@ -47,10 +47,10 @@ const verifyJWT = (req, res, next) => {
 };
 
 const db = mysql.createPool({
-  host: 'localhost',
-  user: 'root', 
-  password: 'Supriya@987', 
-  database: 'drive_to_destiny' 
+  host: 'database-1.c9ymi8csk3n5.ap-south-1.rds.amazonaws.com',
+  user: 'admin', 
+  password: 'Supriya9876', 
+  database: 'd2d_rds' 
 });
 
 
